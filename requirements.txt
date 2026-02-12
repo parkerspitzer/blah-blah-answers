@@ -1,0 +1,7 @@
+flask==3.1.*
+twilio==9.*
+openai==1.*
+anthropic==0.*
+requests==2.*
+python-dotenv==1.*
+gunicorn==23.*
