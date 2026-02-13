@@ -6,10 +6,11 @@ services:
     env_file:
       - .env
     volumes:
-      - ./conversations.db:/app/conversations.db
+      - ./data:/app/data
     restart: unless-stopped
 
-  # Uncomment to run Ollama locally alongside the app
+  # Uncomment to run Ollama locally alongside the app.
+  # NOTE: Set OLLAMA_URL=http://ollama:11434 in your .env (not localhost).
   # ollama:
   #   image: ollama/ollama
   #   ports:

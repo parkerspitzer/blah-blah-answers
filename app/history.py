@@ -3,7 +3,9 @@ import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent.parent / "conversations.db"
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+_DATA_DIR.mkdir(exist_ok=True)
+DB_PATH = _DATA_DIR / "conversations.db"
 
 _local = threading.local()
 
