@@ -2,7 +2,9 @@
 
 ## Project Overview
 
-Blah Blah Answers is an SMS-to-AI gateway for dumb phones. Users text questions to a Twilio phone number, and the server forwards them to an AI provider (OpenAI, Anthropic, or Ollama), returning the response via SMS. Self-hostable with Docker.
+Blah Blah Answers is an SMS-to-AI gateway for dumb phones. Users text questions to a Twilio phone number, and the server forwards them to an AI provider (OpenAI, Anthropic, Gemini, or Ollama), returning the response via SMS. Self-hostable with Docker.
+
+Responses are kept to a single SMS segment (160 characters). Users can text `/context` to get a longer, detailed answer (up to 3 SMS segments / 480 characters) with citations. Conversations auto-expire after 30 minutes of inactivity.
 
 ## Tech Stack
 
@@ -23,7 +25,7 @@ app/
   main.py          # Flask app factory (create_app), health endpoint, entry point
   providers.py     # AI provider abstraction (openai/anthropic/gemini/ollama query functions)
   sms.py           # SMS webhook handler (POST /sms), Twilio validation, commands
-  history.py       # SQLite conversation history (thread-local connections)
+  history.py       # SQLite conversation history (thread-local connections, expiry)
 ```
 
 Root files: `Dockerfile`, `docker-compose.yml`, `requirements.txt`, `.env.example`, `README.md`
@@ -53,12 +55,33 @@ docker compose up -d
 
 - **App factory:** `create_app()` in `app/main.py` initializes Flask and registers blueprints
 - **Blueprint:** SMS routes live in `sms_bp` (`app/sms.py`)
-- **Provider pattern:** `PROVIDERS` dict in `app/providers.py` maps provider names to query functions. `query()` dispatches based on `config.AI_PROVIDER`
+- **Provider pattern:** `PROVIDERS` dict in `app/providers.py` maps provider names to query functions. `query()` dispatches based on `config.AI_PROVIDER`. All provider functions accept an optional `system_prompt` parameter to override the default prompt (used by `/context`)
 - **Message format:** All providers use `{"role": "user"/"assistant"/"system", "content": "..."}`. Anthropic handles `system` separately as a top-level parameter. Gemini uses `system_instruction` in config and maps `assistant` role to `model`
 - **Thread-local SQLite:** `app/history.py` uses `threading.local()` for per-thread DB connections (required by Gunicorn workers)
-- **SMS commands:** `HELP`, `/clear`, and `/context` are handled before AI query in `sms.py`
-- **SMS truncation:** Default responses are capped at 160 characters (1 SMS segment). `/context` responses are capped at 480 characters (3 SMS segments)
-- **Context expiry:** Conversations auto-clear after 30 minutes of inactivity (configurable via `CONTEXT_TIMEOUT_MINUTES`)
+- **Context expiry:** Conversations auto-clear after 30 minutes of inactivity (configurable via `CONTEXT_TIMEOUT_MINUTES`). Checked on each incoming message before querying AI. The `expire_history_if_stale()` function compares the `created_at` timestamp of the most recent message against the current time
+
+### SMS Commands
+
+Commands are case-insensitive and handled before any AI query in `sms.py`:
+
+| Command | Description |
+|---|---|
+| `HELP` | Shows available commands |
+| `/clear` (or `CLEAR`) | Erases conversation history, starts fresh |
+| `/context` | Re-queries the last question with a detailed prompt (up to 480 chars with citations) |
+
+### SMS Response Limits
+
+- **Default responses:** Capped at 160 characters (1 SMS segment) via `SMS_CHAR_LIMIT` in `sms.py`. The `SYSTEM_PROMPT` also instructs the AI to stay under 160 chars
+- **`/context` responses:** Capped at 480 characters (3 SMS segments) via `CONTEXT_CHAR_LIMIT`. Uses `CONTEXT_PROMPT` which asks for detail and citations
+- Truncation appends `...` when the AI exceeds the limit
+
+### Request Flow
+
+1. `incoming_sms()` validates the Twilio signature
+2. Commands (`HELP`, `/clear`, `/context`) are checked and handled first
+3. For regular questions: stale conversations are auto-expired, then conversation history is fetched, AI is queried, response is truncated to 160 chars, and both messages are stored in history
+4. For `/context`: the last user message is retrieved from history and re-queried with `CONTEXT_PROMPT`, response capped at 480 chars (not stored in history to avoid duplicates)
 
 ## Configuration
 
@@ -77,8 +100,8 @@ All config is loaded via environment variables in `app/config.py`. Key settings:
 | `OLLAMA_MODEL` | `llama3.2` | Ollama model name |
 | `TWILIO_ACCOUNT_SID` | | Twilio Account SID |
 | `TWILIO_AUTH_TOKEN` | | Twilio Auth Token (empty = skip validation) |
-| `SYSTEM_PROMPT` | (concise SMS assistant) | AI system prompt (160-char responses) |
-| `CONTEXT_PROMPT` | (detailed SMS assistant) | System prompt for /context responses (480-char) |
+| `SYSTEM_PROMPT` | (concise SMS assistant) | AI system prompt — instructs 160-char responses |
+| `CONTEXT_PROMPT` | (detailed SMS assistant) | System prompt for `/context` — instructs detailed 480-char responses with citations |
 | `CONTEXT_TIMEOUT_MINUTES` | `30` | Minutes of inactivity before auto-clearing conversation |
 | `MAX_HISTORY` | `10` | Conversation messages to include as context |
 | `HOST` | `0.0.0.0` | Server bind address |
