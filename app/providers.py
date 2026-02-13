@@ -1,6 +1,8 @@
 import requests
 from openai import OpenAI
 from anthropic import Anthropic
+from google import genai
+from google.genai import types
 
 from app import config
 
@@ -37,6 +39,31 @@ def query_anthropic(history, user_message):
     return response.content[0].text
 
 
+def query_gemini(history, user_message):
+    client = genai.Client(api_key=config.GEMINI_API_KEY)
+    # Build contents list with conversation history
+    contents = []
+    for msg in history:
+        role = "model" if msg["role"] == "assistant" else msg["role"]
+        contents.append(
+            types.Content(
+                role=role,
+                parts=[types.Part.from_text(msg["content"])],
+            )
+        )
+    contents.append(
+        types.Content(role="user", parts=[types.Part.from_text(user_message)])
+    )
+    response = client.models.generate_content(
+        model=config.GEMINI_MODEL,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            system_instruction=config.SYSTEM_PROMPT,
+        ),
+    )
+    return response.text
+
+
 def query_ollama(history, user_message):
     messages = _build_messages(history, user_message)
     resp = requests.post(
@@ -55,6 +82,7 @@ def query_ollama(history, user_message):
 PROVIDERS = {
     "openai": query_openai,
     "anthropic": query_anthropic,
+    "gemini": query_gemini,
     "ollama": query_ollama,
 }
 
@@ -62,5 +90,5 @@ PROVIDERS = {
 def query(history, user_message):
     provider = config.AI_PROVIDER.lower()
     if provider not in PROVIDERS:
-        return f"Unknown AI provider: {provider}. Use openai, anthropic, or ollama."
+        return f"Unknown AI provider: {provider}. Use openai, anthropic, gemini, or ollama."
     return PROVIDERS[provider](history, user_message)

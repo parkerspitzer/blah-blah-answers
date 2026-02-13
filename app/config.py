@@ -17,6 +17,9 @@ OPENAI_MODEL = get("OPENAI_MODEL", "gpt-4o-mini")
 ANTHROPIC_API_KEY = get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 
+GEMINI_API_KEY = get("GEMINI_API_KEY", "")
+GEMINI_MODEL = get("GEMINI_MODEL", "gemini-2.5-flash")
+
 OLLAMA_URL = get("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = get("OLLAMA_MODEL", "llama3.2")
 

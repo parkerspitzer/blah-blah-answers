@@ -10,7 +10,7 @@ Blah Blah Answers is an SMS-to-AI gateway for dumb phones. Users text questions 
 - **Web framework:** Flask 3.1
 - **WSGI server:** Gunicorn 23
 - **SMS:** Twilio SDK 9
-- **AI providers:** OpenAI SDK 1.x, Anthropic SDK 0.x, Ollama via HTTP
+- **AI providers:** OpenAI SDK 1.x, Anthropic SDK 0.x, Google GenAI SDK 1.x (Gemini), Ollama via HTTP
 - **Database:** SQLite (conversation history)
 - **Config:** python-dotenv
 
@@ -21,7 +21,7 @@ app/
   __init__.py      # Empty package marker
   config.py        # Environment variable loading (all settings as module-level constants)
   main.py          # Flask app factory (create_app), health endpoint, entry point
-  providers.py     # AI provider abstraction (openai/anthropic/ollama query functions)
+  providers.py     # AI provider abstraction (openai/anthropic/gemini/ollama query functions)
   sms.py           # SMS webhook handler (POST /sms), Twilio validation, commands
   history.py       # SQLite conversation history (thread-local connections)
 ```
@@ -54,7 +54,7 @@ docker compose up -d
 - **App factory:** `create_app()` in `app/main.py` initializes Flask and registers blueprints
 - **Blueprint:** SMS routes live in `sms_bp` (`app/sms.py`)
 - **Provider pattern:** `PROVIDERS` dict in `app/providers.py` maps provider names to query functions. `query()` dispatches based on `config.AI_PROVIDER`
-- **Message format:** All providers use `{"role": "user"/"assistant"/"system", "content": "..."}`. Anthropic handles `system` separately as a top-level parameter
+- **Message format:** All providers use `{"role": "user"/"assistant"/"system", "content": "..."}`. Anthropic handles `system` separately as a top-level parameter. Gemini uses `system_instruction` in config and maps `assistant` role to `model`
 - **Thread-local SQLite:** `app/history.py` uses `threading.local()` for per-thread DB connections (required by Gunicorn workers)
 - **SMS commands:** `HELP` and `CLEAR` are handled before AI query in `sms.py`
 - **SMS truncation:** Responses are capped at 1600 characters
@@ -65,11 +65,13 @@ All config is loaded via environment variables in `app/config.py`. Key settings:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `AI_PROVIDER` | `openai` | Which AI backend: openai, anthropic, ollama |
+| `AI_PROVIDER` | `openai` | Which AI backend: openai, anthropic, gemini, ollama |
 | `OPENAI_API_KEY` | | OpenAI API key |
 | `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model name |
 | `ANTHROPIC_API_KEY` | | Anthropic API key |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-20250514` | Anthropic model name |
+| `GEMINI_API_KEY` | | Google Gemini API key |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model name |
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama server URL |
 | `OLLAMA_MODEL` | `llama3.2` | Ollama model name |
 | `TWILIO_ACCOUNT_SID` | | Twilio Account SID |
