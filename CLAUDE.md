@@ -11,7 +11,7 @@ Blah Blah Answers is an SMS-to-AI gateway for dumb phones. Users text questions 
 - **WSGI server:** Gunicorn 23
 - **SMS:** Twilio SDK 9
 - **AI providers:** OpenAI SDK 1.x, Anthropic SDK 0.x, Google GenAI SDK 1.x (Gemini), Ollama via HTTP
-- **Database:** SQLite (conversation history)
+- **Database:** SQLite (conversation history, stored in `data/conversations.db`)
 - **Config:** python-dotenv
 
 ## Project Structure
@@ -23,10 +23,11 @@ app/
   main.py          # Flask app factory (create_app), health endpoint, entry point
   providers.py     # AI provider abstraction (openai/anthropic/gemini/ollama query functions)
   sms.py           # SMS webhook handler (POST /sms), Twilio validation, commands
-  history.py       # SQLite conversation history (thread-local connections)
+  history.py       # SQLite conversation history (thread-local connections, DB in data/)
+data/              # Created at runtime; holds conversations.db (gitignored)
 ```
 
-Root files: `Dockerfile`, `docker-compose.yml`, `requirements.txt`, `.env.example`, `README.md`
+Root files: `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `requirements.txt`, `.env.example`, `README.md`
 
 ## Running the App
 
@@ -42,7 +43,21 @@ python -m app.main
 
 # Run with Docker
 docker compose up -d
+
+# View Docker logs
+docker compose logs -f
+
+# Rebuild after code changes
+docker compose up -d --build
 ```
+
+## Docker Details
+
+- **Base image:** `python:3.12-slim`
+- **WSGI:** Gunicorn bound to `0.0.0.0:5000` with 2 workers
+- **Data persistence:** `docker-compose.yml` mounts `./data:/app/data` so the SQLite database survives container restarts
+- **`.dockerignore`** excludes `.env`, `.git`, `*.db`, `__pycache__`, `docker-compose.yml`, and docs from the build context
+- **Ollama in Docker:** When running the optional Ollama service, set `OLLAMA_URL=http://ollama:11434` in `.env` (not `localhost`, since containers use Docker's internal DNS)
 
 ## HTTP Endpoints
 
@@ -55,7 +70,7 @@ docker compose up -d
 - **Blueprint:** SMS routes live in `sms_bp` (`app/sms.py`)
 - **Provider pattern:** `PROVIDERS` dict in `app/providers.py` maps provider names to query functions. `query()` dispatches based on `config.AI_PROVIDER`
 - **Message format:** All providers use `{"role": "user"/"assistant"/"system", "content": "..."}`. Anthropic handles `system` separately as a top-level parameter. Gemini uses `system_instruction` in config and maps `assistant` role to `model`
-- **Thread-local SQLite:** `app/history.py` uses `threading.local()` for per-thread DB connections (required by Gunicorn workers)
+- **Thread-local SQLite:** `app/history.py` uses `threading.local()` for per-thread DB connections (required by Gunicorn workers). The `data/` directory is created automatically at import time via `_DATA_DIR.mkdir(exist_ok=True)`
 - **SMS commands:** `HELP`, `/clear`, and `/context` are handled before AI query in `sms.py`
 - **SMS truncation:** Default responses are capped at 160 characters (1 SMS segment). `/context` responses are capped at 480 characters (3 SMS segments)
 - **Context expiry:** Conversations auto-clear after 30 minutes of inactivity (configurable via `CONTEXT_TIMEOUT_MINUTES`)
@@ -87,7 +102,7 @@ All config is loaded via environment variables in `app/config.py`. Key settings:
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-20250514` | Anthropic model name |
 | `GEMINI_API_KEY` | | Google Gemini API key |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model name |
-| `OLLAMA_URL` | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_URL` | `http://localhost:11434` | Ollama server URL (use `http://ollama:11434` in Docker) |
 | `OLLAMA_MODEL` | `llama3.2` | Ollama model name |
 | `TWILIO_ACCOUNT_SID` | | Twilio Account SID |
 | `TWILIO_AUTH_TOKEN` | | Twilio Auth Token (empty = skip validation) |
@@ -109,4 +124,4 @@ All config is loaded via environment variables in `app/config.py`. Key settings:
 
 ## Sensitive Files
 
-Never commit: `.env`, `*.db` (both in `.gitignore`)
+Never commit: `.env`, `*.db`, `data/` (all in `.gitignore`)
