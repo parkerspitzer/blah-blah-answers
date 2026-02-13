@@ -16,6 +16,7 @@ venv/
 
 # Database
 *.db
+data/
 
 # IDE
 .vscode/
