@@ -56,8 +56,9 @@ docker compose up -d
 - **Provider pattern:** `PROVIDERS` dict in `app/providers.py` maps provider names to query functions. `query()` dispatches based on `config.AI_PROVIDER`
 - **Message format:** All providers use `{"role": "user"/"assistant"/"system", "content": "..."}`. Anthropic handles `system` separately as a top-level parameter. Gemini uses `system_instruction` in config and maps `assistant` role to `model`
 - **Thread-local SQLite:** `app/history.py` uses `threading.local()` for per-thread DB connections (required by Gunicorn workers)
-- **SMS commands:** `HELP` and `CLEAR` are handled before AI query in `sms.py`
-- **SMS truncation:** Responses are capped at 1600 characters
+- **SMS commands:** `HELP`, `/clear`, and `/context` are handled before AI query in `sms.py`
+- **SMS truncation:** Default responses are capped at 160 characters (1 SMS segment). `/context` responses are capped at 480 characters (3 SMS segments)
+- **Context expiry:** Conversations auto-clear after 30 minutes of inactivity (configurable via `CONTEXT_TIMEOUT_MINUTES`)
 
 ## Configuration
 
@@ -76,7 +77,9 @@ All config is loaded via environment variables in `app/config.py`. Key settings:
 | `OLLAMA_MODEL` | `llama3.2` | Ollama model name |
 | `TWILIO_ACCOUNT_SID` | | Twilio Account SID |
 | `TWILIO_AUTH_TOKEN` | | Twilio Auth Token (empty = skip validation) |
-| `SYSTEM_PROMPT` | (concise SMS assistant) | AI system prompt |
+| `SYSTEM_PROMPT` | (concise SMS assistant) | AI system prompt (160-char responses) |
+| `CONTEXT_PROMPT` | (detailed SMS assistant) | System prompt for /context responses (480-char) |
+| `CONTEXT_TIMEOUT_MINUTES` | `30` | Minutes of inactivity before auto-clearing conversation |
 | `MAX_HISTORY` | `10` | Conversation messages to include as context |
 | `HOST` | `0.0.0.0` | Server bind address |
 | `PORT` | `5000` | Server port |

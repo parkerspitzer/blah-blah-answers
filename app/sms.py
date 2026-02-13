@@ -12,10 +12,14 @@ sms_bp = Blueprint("sms", __name__)
 
 HELP_TEXT = (
     "Commands:\n"
-    "CLEAR - erase conversation history\n"
+    "/clear - erase conversation history\n"
+    "/context - get a detailed answer to your last question\n"
     "HELP - show this message\n"
     "\nJust text any question to get an AI-powered answer."
 )
+
+SMS_CHAR_LIMIT = 160
+CONTEXT_CHAR_LIMIT = 480
 
 
 def _validate_twilio_request(req):
@@ -49,19 +53,44 @@ def incoming_sms():
         resp.message(HELP_TEXT)
         return str(resp)
 
-    if command == "CLEAR":
+    if command in ("CLEAR", "/CLEAR"):
         history.clear_history(from_number)
         resp.message("Conversation history cleared.")
         return str(resp)
+
+    if command == "/CONTEXT":
+        last_question = history.get_last_user_message(from_number)
+        if not last_question:
+            resp.message("No previous question found. Send a question first.")
+            return str(resp)
+
+        try:
+            conv_history = history.get_history(from_number, config.MAX_HISTORY)
+            answer = providers.query(
+                conv_history, last_question, system_prompt=config.CONTEXT_PROMPT
+            )
+            if len(answer) > CONTEXT_CHAR_LIMIT:
+                answer = answer[: CONTEXT_CHAR_LIMIT - 3] + "..."
+            resp.message(answer)
+        except Exception:
+            log.exception("Error processing /context for %s", from_number)
+            resp.message("Sorry, something went wrong. Please try again.")
+        return str(resp)
+
+    # Auto-expire stale conversations (30-minute timeout)
+    expired = history.expire_history_if_stale(
+        from_number, config.CONTEXT_TIMEOUT_MINUTES
+    )
+    if expired:
+        log.info("Auto-cleared stale conversation for %s", from_number)
 
     # Get conversation history and query AI
     try:
         conv_history = history.get_history(from_number, config.MAX_HISTORY)
         answer = providers.query(conv_history, body)
 
-        # SMS messages are limited to 1600 characters
-        if len(answer) > 1600:
-            answer = answer[:1597] + "..."
+        if len(answer) > SMS_CHAR_LIMIT:
+            answer = answer[: SMS_CHAR_LIMIT - 3] + "..."
 
         # Store both messages in history
         history.add_message(from_number, "user", body)
