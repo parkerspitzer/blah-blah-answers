@@ -29,9 +29,18 @@ TWILIO_AUTH_TOKEN = get("TWILIO_AUTH_TOKEN", "")
 SYSTEM_PROMPT = get(
     "SYSTEM_PROMPT",
     "You are a helpful assistant answering questions via SMS. "
-    "Keep responses concise and under 300 characters when possible. "
+    "Keep responses extremely concise — under 160 characters total. "
     "No markdown formatting. Plain text only.",
 )
+
+CONTEXT_PROMPT = get(
+    "CONTEXT_PROMPT",
+    "You are a helpful assistant answering questions via SMS. "
+    "Provide a detailed response with citations or sources where relevant. "
+    "Keep the response under 480 characters. No markdown formatting. Plain text only.",
+)
+
+CONTEXT_TIMEOUT_MINUTES = int(get("CONTEXT_TIMEOUT_MINUTES", "30"))
 
 HOST = get("HOST", "0.0.0.0")
 PORT = int(get("PORT", "5000"))

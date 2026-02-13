@@ -7,16 +7,16 @@ from google.genai import types
 from app import config
 
 
-def _build_messages(history, user_message):
-    messages = [{"role": "system", "content": config.SYSTEM_PROMPT}]
+def _build_messages(history, user_message, system_prompt=None):
+    messages = [{"role": "system", "content": system_prompt or config.SYSTEM_PROMPT}]
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
     return messages
 
 
-def query_openai(history, user_message):
+def query_openai(history, user_message, system_prompt=None):
     client = OpenAI(api_key=config.OPENAI_API_KEY)
-    messages = _build_messages(history, user_message)
+    messages = _build_messages(history, user_message, system_prompt)
     response = client.chat.completions.create(
         model=config.OPENAI_MODEL,
         messages=messages,
@@ -24,7 +24,7 @@ def query_openai(history, user_message):
     return response.choices[0].message.content
 
 
-def query_anthropic(history, user_message):
+def query_anthropic(history, user_message, system_prompt=None):
     client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
     # Anthropic uses system as a top-level param, not in messages
     chat_messages = []
@@ -33,13 +33,13 @@ def query_anthropic(history, user_message):
     response = client.messages.create(
         model=config.ANTHROPIC_MODEL,
         max_tokens=1024,
-        system=config.SYSTEM_PROMPT,
+        system=system_prompt or config.SYSTEM_PROMPT,
         messages=chat_messages,
     )
     return response.content[0].text
 
 
-def query_gemini(history, user_message):
+def query_gemini(history, user_message, system_prompt=None):
     client = genai.Client(api_key=config.GEMINI_API_KEY)
     # Build contents list with conversation history
     contents = []
@@ -58,14 +58,14 @@ def query_gemini(history, user_message):
         model=config.GEMINI_MODEL,
         contents=contents,
         config=types.GenerateContentConfig(
-            system_instruction=config.SYSTEM_PROMPT,
+            system_instruction=system_prompt or config.SYSTEM_PROMPT,
         ),
     )
     return response.text
 
 
-def query_ollama(history, user_message):
-    messages = _build_messages(history, user_message)
+def query_ollama(history, user_message, system_prompt=None):
+    messages = _build_messages(history, user_message, system_prompt)
     resp = requests.post(
         f"{config.OLLAMA_URL}/api/chat",
         json={
@@ -87,8 +87,8 @@ PROVIDERS = {
 }
 
 
-def query(history, user_message):
+def query(history, user_message, system_prompt=None):
     provider = config.AI_PROVIDER.lower()
     if provider not in PROVIDERS:
         return f"Unknown AI provider: {provider}. Use openai, anthropic, gemini, or ollama."
-    return PROVIDERS[provider](history, user_message)
+    return PROVIDERS[provider](history, user_message, system_prompt)
