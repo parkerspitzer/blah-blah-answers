@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Blah Blah Answers is an SMS-to-AI gateway for dumb phones. Users text questions to a Twilio phone number, and the server forwards them to an AI provider (OpenAI, Anthropic, or Ollama), returning the response via SMS. Self-hostable with Docker.
+Blah Blah Answers is an SMS-to-AI gateway for dumb phones. Users text questions to a Twilio phone number, and the server forwards them to an AI provider (OpenAI, Anthropic, Gemini, or Ollama), returning the response via SMS. Self-hostable with Docker.
 
 ## Tech Stack
 
@@ -59,6 +59,20 @@ docker compose up -d
 - **SMS commands:** `HELP`, `/clear`, and `/context` are handled before AI query in `sms.py`
 - **SMS truncation:** Default responses are capped at 160 characters (1 SMS segment). `/context` responses are capped at 480 characters (3 SMS segments)
 - **Context expiry:** Conversations auto-clear after 30 minutes of inactivity (configurable via `CONTEXT_TIMEOUT_MINUTES`)
+
+## SMS Commands
+
+Commands are case-insensitive and handled in `app/sms.py` before AI query dispatch:
+
+| Command | Aliases | Description | Response Limit |
+|---|---|---|---|
+| `HELP` | | Show available commands and usage info | N/A |
+| `/CLEAR` | `CLEAR` | Erase all conversation history for the sender | N/A |
+| `/CONTEXT` | | Re-query the last question with the detailed `CONTEXT_PROMPT`; returns a longer, more thorough answer | 480 chars (3 SMS segments) |
+| *(any other text)* | | Forwarded to the AI provider as a question | 160 chars (1 SMS segment) |
+
+- `/CONTEXT` returns an error message if no previous user question exists for that number
+- Conversations auto-expire after `CONTEXT_TIMEOUT_MINUTES` (default 30) minutes of inactivity
 
 ## Configuration
 

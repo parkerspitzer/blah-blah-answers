@@ -2,7 +2,7 @@
 
 SMS-to-AI gateway for dumb phones. Text a question, get an answer — no data plan needed.
 
-Supports OpenAI, Anthropic, and Ollama (fully local) as AI backends. Completely self-hostable.
+Supports OpenAI, Anthropic, Google Gemini, and Ollama (fully local) as AI backends. Completely self-hostable.
 
 ## How It Works
 
@@ -63,16 +63,20 @@ All configuration is done through environment variables (`.env` file). See `.env
 
 | Variable | Description | Default |
 |---|---|---|
-| `AI_PROVIDER` | `openai`, `anthropic`, or `ollama` | `openai` |
+| `AI_PROVIDER` | `openai`, `anthropic`, `gemini`, or `ollama` | `openai` |
 | `OPENAI_API_KEY` | Your OpenAI API key | |
 | `OPENAI_MODEL` | OpenAI model to use | `gpt-4o-mini` |
 | `ANTHROPIC_API_KEY` | Your Anthropic API key | |
 | `ANTHROPIC_MODEL` | Anthropic model to use | `claude-sonnet-4-20250514` |
+| `GEMINI_API_KEY` | Your Google Gemini API key | |
+| `GEMINI_MODEL` | Gemini model to use | `gemini-2.5-flash` |
 | `OLLAMA_URL` | Ollama server URL | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Ollama model to use | `llama3.2` |
 | `TWILIO_ACCOUNT_SID` | Twilio Account SID | |
 | `TWILIO_AUTH_TOKEN` | Twilio Auth Token (for request validation) | |
-| `SYSTEM_PROMPT` | Customize AI behavior | (see .env.example) |
+| `SYSTEM_PROMPT` | System prompt for normal responses (160 chars) | (see .env.example) |
+| `CONTEXT_PROMPT` | System prompt for `/context` responses (480 chars) | (see .env.example) |
+| `CONTEXT_TIMEOUT_MINUTES` | Minutes of inactivity before auto-clearing conversation | `30` |
 | `MAX_HISTORY` | Messages of context to keep per number | `10` |
 
 ## Using Ollama (Fully Local)
@@ -94,9 +98,17 @@ Or uncomment the Ollama service in `docker-compose.yml` to run it alongside the 
 
 Users can text these commands to your number:
 
-- **HELP** — show available commands
-- **CLEAR** — erase conversation history
-- Anything else is treated as a question for the AI
+| Command | Description |
+|---|---|
+| `HELP` | Show available commands |
+| `CLEAR` or `/CLEAR` | Erase conversation history |
+| `/CONTEXT` | Get a detailed, longer answer to your last question (up to 480 characters / 3 SMS segments) |
+
+Any other text is treated as a question for the AI. Normal responses are kept concise at 160 characters (1 SMS segment).
+
+### Auto-Expiry
+
+Conversations automatically clear after 30 minutes of inactivity (configurable via `CONTEXT_TIMEOUT_MINUTES`). This keeps responses relevant without requiring users to manually clear history.
 
 ## Endpoints
 
